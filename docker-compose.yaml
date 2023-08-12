@@ -1,0 +1,62 @@
+version: '3'
+
+services:
+  clickhouse:
+    build:
+      context: .docker/clickhouse
+    image: php-test/clickhouse:latest
+    restart: unless-stopped
+  
+  mariadb:
+    env_file:
+      - .env
+    build:
+      context: .docker/mariadb
+    image: php-test/mariadb:latest
+    restart: unless-stopped
+  
+  nginx:
+    build:
+      context: .
+      dockerfile: .docker/nginx/Dockerfile
+    image: php-test/nginx:latest
+    restart: unless-stopped
+    ports:
+      - 127.0.0.1:8080:80
+    depends_on:
+      - php
+  
+  php:
+    env_file:
+      - .env
+    build:
+      context: .
+      dockerfile: .docker/php/Dockerfile
+    image: php-test/php-test:latest
+    restart: unless-stopped
+    depends_on:
+      - clickhouse
+      - mariadb
+      - rabbitmq
+
+  php-jobs:
+    env_file:
+      - .env
+    build:
+      context: .
+      dockerfile: .docker/php/Dockerfile.jobs
+    image: php-test/php-jobs:latest
+    restart: unless-stopped
+    depends_on:
+      - php
+      - clickhouse
+      - mariadb
+      - rabbitmq
+  
+  rabbitmq:
+    env_file:
+      - .env
+    build:
+      context: .docker/rabbitmq
+    image: php-test/rabbitmq:latest
+    restart: unless-stopped

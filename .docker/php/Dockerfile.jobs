@@ -1,0 +1,24 @@
+FROM php:8.2-alpine3.17
+
+ENV UID 1000
+ENV GID 1000
+
+ENV PHPIZE_DEPS="$PHPIZE_DEPS linux-headers"
+ENV LOCAL_DEPS="shadow supervisor"
+
+RUN set -xue ;\
+    apk --no-cache add ${PHPIZE_DEPS} ${LOCAL_DEPS} ;\
+    docker-php-ext-install pdo_mysql sockets ;\
+    usermod -u ${UID} www-data ;\
+    groupmod -g ${GID} www-data ;\
+    apk --no-cache del ${PHPIZE_DEPS} ;\
+    docker-php-source delete
+
+COPY .docker/php/jobs.ini /etc/supervisor.d/jobs.ini
+
+WORKDIR /var/www/html
+
+COPY --from=php-test/php-test:latest /var/www/html/vendor vendor
+COPY . .
+
+CMD ["/usr/bin/supervisord", "--nodaemon"]

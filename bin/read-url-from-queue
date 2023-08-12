@@ -1,0 +1,38 @@
+#!/usr/bin/env php
+<?php
+
+use App\Component\Queue\QueueReader;
+use App\Component\Container\ContainerInterface;
+use App\Component\Request\Request;
+use App\Repository\ClickhouseRepository;
+use App\Repository\MariadbRepository;
+use PhpAmqpLib\Channel\AMQPChannel;
+use PhpAmqpLib\Message\AMQPMessage;
+
+require_once dirname(__DIR__) . '/config/bootstrap.php';
+
+/**@var ContainerInterface $container */
+$reader = $container->get(QueueReader::class);
+
+$mariadbRepository = $container->get(MariadbRepository::class);
+$clickhouseRepositury = $container->get(ClickhouseRepository::class);
+
+$reader->consume(function (AMQPMessage $msg) use($mariadbRepository, $clickhouseRepositury) {
+    $url = $msg->getBody();
+    notify("get $url from queue");
+
+    $request = new Request();
+    $response = $request->enableBody(false)->get($url);
+
+    if ($response->getBodySize() <= 0) {
+        $response = $request->enableBody(true)->get($url);
+    }
+
+    $mariadbRepository->insertStatistic($url, $response->getBodySize());
+    $clickhouseRepositury->insertStatistic($url, $response->getBodySize());
+});
+
+$channel = $container->get(AMQPChannel::class);
+while ($channel->is_open()) {
+    $channel->wait();
+}
